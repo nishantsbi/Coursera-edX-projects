@@ -1,0 +1,418 @@
+---
+title: "Microarray analysis project_edx_nishant"
+author: "Nishant Upadhyay"
+date: "Sunday, October 19, 2014"
+output: pdf_document
+---
+###INTRODUCTION
+
+In this exercise we will analyze data taken from a typical experiment in medical science. Our example data is taken from a microarray experiment. 
+
+(1) the experiment contains totally eight samples - clumps of human cells in this case
+(2) four samples have been treated with a chemical, and four are non-treated controls
+(3) there are approximately 22000 variables measured on each sample
+
+The experiment can in other words be summarized as 4 + 4 columns of samples times 22000 rows of variables. What we want to find out is which, if any, of all these 22000 variables are changing (in medscience we often say "regulated") significantly as a result of the treatment.
+
+This may appear to be an extreme example, but think of this experiment as a model for any study where we have two groups of subjects and we measure several tens or hundreds of parameters in each group and want to see how the groups differ.
+
+*In a microarray experiment the variables measured are usually called "probes", "genes" or "features", and each measured value is often called an "expression" value. Don't get stuck on these terms during the exercise*.
+
+### MICROARRAYS
+
+In medical science we often ask questions like: "How does this medicine affect the liver", "What is the difference between normal skin and a tumor in the skin", or "Is there a good candidate molecule in a tissue with inflammation that we can target with a medicine to reduce the inflammation". A common denominator is that we want to compare two or more cases, and the best experiment is naturally one that gives as much information as possible on what is going on.
+
+More or less everything that is "going on" in a tissue or a cell in the body is controlled by proteins. Proteins are complex molecules that come in thousands of brands. Some of them are building blocks of the cell, other transmit information or store energy, and another group, the enzymes, are the work-horses that perform the actions and chemical reactions in the cell. The proper function of a cell is totally dependent on that all these proteins are present in the correct concentrations. 
+
+Almost any change that a cell experiences is reflected in increasing and/or decreasing concentrations of one or more of all these proteins. In other words, if we have a method to compare all the protein concentrations in the healthy and sick cells or tissues, we could pinpoint which are affected, and this could give clues to what has actually happened in the sick sample, especially if we are lucky to know something about the affected proteins. Measuring proteins turns out to be very difficult, but instead of the proteins we can measure mRNAs: An mRNA is another kind of molecule which is used to construct the proteins. Every protein is built using one specific kind of mRNA, and the more of that mRNA we have, the more protein is produced.
+
+Here is where the microarray comes in. A microarray is a little plate, it almost looks like a computer chip, with thousands of microscopic chemically prepared spots on it, and each of these spots has the ability to identify one specific mRNA if you pour the properly prepared cell sap from a tissue or cell sample on it. Under a special kind of microscope, each spot will give a light signal which we can measure that is higher the higher the concentration of that mRNA is in the sample. In other words, if we measure the whole microarray we will get a lot of values for all the different mRNA concentrations in the sample, which will directly tell us something about all the protein concentrations.
+
+Ultimately, the production of each mRNA is controlled by a gene on the chromosomes. *That is why microarray data is often termed "gene expression" values*.
+
+Microarrays have been used extensively in medical science during the last 20 years, and there is a special database at the National Institute for Biotechnology Information in USA (NCBI) where data from lots of microarray experiments are publicly available. We are going to download our example data from there. It comes from an investigation of human vein cells treated with the inflammatory stimulus TNF, aiming at elucidating mechanisms of inflammation.
+
+### INSTALLING PACKAGES
+
+BioConductor is a project that aims to develop and make available R functionality for bioinformatics, that is, the computational analysis of biological problems. It's a kind of umbrella that collects R libraries (also called packages) from people and research groups all over the world. BioConductor has a peer review process that each package has to undergo in order to get into the project. You can read everything about BioConductor on its web page, 
+www.bioconductor.org.
+
+In order to install BioConductor packages, you use a procedure that is a bit different from the usual install.packages() or R CMD INSTALL (or whatever you use for standard R packages). You start by writing:
+
+source("http://www.bioconductor.org/biocLite.R")
+
+This command actually runs an R program that defines the function biocLite() that is used for installing Bioconductor. (Try pasting the web address into the address line of your browser, and you will see the actual R program!)
+
+For our analysis we need the BioConductor packages "GEOquery" and "limma". Install them like this:
+
+biocLite("GEOquery")
+biocLite("limma") 
+
+Activate the packages in the normal way:
+```{r message=FALSE}
+
+library(Biobase)
+library(GEOquery)
+library(limma)
+library(gplots)
+```
+
+("Biobase" is the core package of Bioconductor and is always installed automatically.)
+
+### Retrieving data
+
+Let's start by downloading a dataset from the NCBI Gene Expression Omnibus 
+(GEO), http://www.ncbi.nlm.nih.gov/geo/. This is a large database of
+microarray experiments from scientists all over the world. The example data for this exercise has the identifier "GDS1542" in this database.
+
+```{r}
+                 setwd("H:/Elearning/courseera videos/edX_KIx KIexploRx Explore Statistics with R/week5_visiting the research frontier/Microarray analysis")
+gds <- getGEO('GDS1542', destdir=".")
+```
+'gds' now contains the actual measured values as well as a lot of metadata, like organism, number of genes (features) etc.
+
+```{r}
+class(gds)
+```
+you learn that gds is an object of class 'GDS', defined in the library 'GEOQuery'.
+
+```{r}
+show(gds)
+```
+You will be presented a lot of information about this experiment, and at the end the description of the samples (Columns descriptions) and the beginning of the actual Data Table. Each row in the data table are the measured values for one probe (spot) on the microarray. The cryptic name of this probe is in the first column (ID_REF). The gene (and protein produced from that gene) each probe detects is in the second column (IDENTIFIER).
+
+The GEOData is a specialized class, for GEO derived datasets only. *For our further analyses we need to convert it to something that fits the general functions of Bioconductor. This is the ExpressionSet class, and there is a special function to do this conversion.* Try:
+
+```{r}
+eset <- GDS2eSet(gds)
+
+##To get an overview of eset, just type:
+show(eset)
+```
+The ExpressionSet contains basically the same information as the GDS, but structured differently. 
+
+```{r message=FALSE}
+#Let's currently just extract the actual values as a standard matrix:
+expdata <- exprs(eset)
+
+#Verify the size of the matrix:
+dim(expdata)
+
+#There are thousands of probes (rows) and much fewer samples (columns). 
+#Let's also get a glimpse of the data:
+head(expdata)
+
+#We lost the gene (IDENTIFIER) column from the table, 
+#but don't worry about that for now.
+```
+
+
+###Filtering
+
+```{r}
+#Sometimes there is missing data in real experiments,
+#so let's check for that:
+sum(is.na(expdata))
+
+#Apparently there is one data point missing. Let's find the row 
+#in order to filter it away.
+w <- which(apply(is.na(expdata), 1, sum) > 0 )
+
+#Now we know which row to remove.Filter away that row
+temp <- expdata[-w, ]
+```
+
+## Filtering continued
+
+Verify that you removed exactly one row using a proper R function!
+
+```{r}
+#Then redefine expdata to the filtered result:
+expdata <- temp
+```
+
+Now check how the data looks using a box plot:
+
+```{r}
+boxplot(as.data.frame(expdata))
+```
+
+Oops, this looks strange! Almost all values are close to zero and there seems to be an extended tail of outlying high values. *Actually, microarray data is not at all normal distributed*. But if we make the 2-logarithm of data it is much better:
+
+```{r}
+# Normalising microarray data by taking logs
+logdata <- log2(expdata)
+
+#Check again if it improved:
+boxplot(as.data.frame(logdata))
+```
+This is much better. Furthermore, the mean of all the samples are approximately the same, showing that on a global scale, every microarray worked equally well technically.
+
+In a meaningful experiment with many variables, the purpose is to detect the (relatively small) subset of variables that change significantly between the conditions studied. Naively, we could now just make a lot of t-tests, one for each probe and see which are significantly changing. But this will give us a lot of false positives just by chance, even if there is no true change of any probe between the samples.
+
+How many false positives would you expect when investigating changes in 22000 probes between identical samples at a p-value threshold of 0.05?
+ans-22000*0.05=1100
+
+Thus, we want to eliminate as many variables as possible that we do not consider biologically meaningful before doing statistical testing.
+Furthermore in our kind of experiment with microarrays, data tend to be very noisy when the signal is very low. Let's have a look on that by plotting the standard deviation against the mean for every probe:
+```{r}
+probemeans <- apply(logdata, 1, mean)
+probesd <- apply(logdata, 1, sd)
+plot(probemeans, probesd)
+```
+
+It is clear that standard deviation is higher at lower means. Some probes have veryy high standard deviations - these may be truly changing, something we will investigate further on.
+
+```{r}
+#Let's first eliminate the 25% of the probes that have weakest signal:
+q25 <- quantile(probemeans, 0.25)
+whichtosave <- which(probemeans > q25)
+q25logdata <- logdata[whichtosave,]
+```
+
+Since we are only interested in probes that change, and thus have high variability, we can also remove those with very low variability. A way to do that is to filter on the inter-quartile range (using the IQR function). Keep only those with an IQR above 1.5:
+```{r}
+mydata <- q25logdata[apply(q25logdata, 1, IQR) > 1.5, ]
+```
+
+```{r}
+#How many variables remain?
+dim(mydata)[1]
+```
+
+###Data exploration
+
+At this point it would be interesting to do a *Principal Component Analysis (PCA)*. This basically transforms the data to find new orthogonal variables that explain most of the variation in the dataset. 
+
+This variation can be analysed either between probes (rows) or samples (columns). We will use the function prcomp() for the PCA. It does the analysis between rows. For our purpose the samples are most interesting to compare, so we need to interchange columns and rows in mydata. This is also called to "transpose" the matrix.
+
+Find out how you can transpose mydata and put the result in tdata?
+tdata <- aperm(mydata, c(2,1)) or
+tdata <- t(mydata) or 
+tdata <- aperm(mydata)
+
+```{r}
+# transposing data
+tdata <- t(mydata)
+```
+
+```{r}
+#Now we use function prcomp() on the transposed data:
+pca <- prcomp(tdata, scale=T)
+```
+
+```{r}
+#We can look at the explanatory value of the principal components:
+summary(pca)
+```
+
+The first component explains the largest part of the variance, but not all. In the best of worlds, this accounts for the difference between our experimental conditions, otherwise we have some unknown batch effect that dominate the experiment.
+
+```{r}
+#We can plot the samples in relation to the first two components:
+plot(pca$x, type="n")
+text(pca$x, rownames(pca$x), cex=0.5)
+
+```
+
+More interesting is maybe to see which experimental condition they belong to. For that purpose we extract this from the ExpressionSet (remember that?, use show(eset) again...)
+
+```{r}
+conditions <- phenoData(eset)$agent
+plot(pca$x, type="n")
+text(pca$x, labels=conditions, cex=0.5)
+```
+
+Luckily the first component divides the samples by condition. However, in one sample something else seems to be going on, sending it away along the second component. That can be worth remembering when judging the final results.
+
+Another informative plot is to do a *dendrogram of correlation between the samples*. First we make a correlation matrix between the samples, than a hierarchical clustering is performed:
+
+```{r}
+pearsonCorr <- as.dist(1 - cor(mydata))
+hC <- hclust(pearsonCorr)
+plot(hC, labels = sampleNames(eset))
+```
+
+The heights of the branches indicate how distant the samples are.
+
+```{r}
+#Recall which sample was in each condition by putting condition as labels:
+plot(hC, labels = conditions)
+```
+
+The two groups and the sample "in between" are even more evident here than in the PCA.
+
+*Another useful visualization of large datasets is the* **heatmap**. R clusters the data both on rows columns with this command:
+
+```{r message=FALSE}
+library(gplots)
+heatmap(mydata, col=greenred(100))
+```
+
+Red corresponds to high, green to low values. The dendrogram on top is basically the same as we produced earlier, in a slightly different order. Towards the bottom of the heatmap are the probes clustered that discriminate the two conditions clearly.
+
+Let's now find the probes change significantly between the conditions. There are several tools to do that, more or less advanced. The most simplistic would be to do a t-test for every probe. This is however not a good idea. We have a lot of probes, and the few samples will give the estimate of variance low precision in many cases and give us many false negatives and positives. 
+
+However, it turns out that the variance of probes with approximately the same expression level is rather similar, and hence one can let probes "borrow" variance from each other to get better variance estimates. *Such a method is employed in the limma package (LInear Models for Microarrays)*.
+
+**limma** needs to see the whole dataset, including the high variance probes, to do correct variance estimations. Thus we will go back and use our ExpressionSet containing all data.In addition to the actual data, **limma needs a model matrix, basically information on which conditions each sample represents. R has a standard function for defining model matrices,model.matrix**. It uses the ~ operator to define dependencies. 
+
+Each input variable should be a factor, so let's first make a factor out of the conditions (agent in our ExpressionSet):
+```{r}
+condfactor <- factor(eset$agent)
+```
+
+```{r}
+#Construct a model matrix, and assign the names to the columns:
+design <- model.matrix(~0+condfactor)
+```
+
+```{r}
+#For the columns of the design matrix you could use any names. 
+#I choose "ctrl" for the control samples, and "tnf" for the 
+#chemically treated.
+colnames(design) <- c("ctrl", "tnf")
+```
+
+```{r}
+#Check how the matrix looks:
+design
+```
+
+Note that the first 4 samples have '1' in the control level, and the following 4 have the '1' in the other level. If we had had a multifactor experiment (ANOVA style data), we would have included more levels and assigned them in appropriate combinations to the samples.
+
+```{r}
+#The next command estimates the variances:
+fit <- lmFit(eset, design)
+```
+
+```{r}
+#Now we need to define the conditions we want to compare - trivial 
+#in this case since there are only two conditions:
+contrastmatrix <- makeContrasts(tnf - ctrl,levels=design)
+```
+
+```{r}
+#The following commands calculate the p-values for the differences
+#between the conditions defined by the contrast matrix:
+fit <- contrasts.fit(fit, contrastmatrix)
+ebayes <- eBayes(fit)
+```
+
+```{r}
+#As so often in R we can use show(ebayes) or just ebayes to see what the result contains:
+ebayes
+```
+
+```{r}
+#A lot of stuff here, one of the most interesting is the p.value.
+#Let's make a histogram of the p values:
+hist(ebayes$p.value)
+```
+
+You see that the number of probes are enriched close to p = 0.00. This surplus is due to the genes that are significantly changing between the conditions. If the data had a skewed distribution we might see an accumulation at the
+p = 1.00 end, indicating a problem with our data.
+
+If the data were completely random, the p values would be equally distributed from 0 to 1, thus if we from random data picked the probes that had p < 0.05 as "significant", we would pick exactly 1/20 of all probes, all being false positives. Unfortunately, there is no way to discriminate the surplus true probes from the false positives. This is problem with any study where a lot of variables are tested, for instance in large sociology studies. 
+
+However, there are ways to regulate the p-value cut off in order to have control over the false positives. A common way is the **Benjamini-Hochberg adjustment**. **This adjustment allows you to set a limit to how large fraction of false positive variables (false discovery rate, or FDR) you accept in the results.**
+
+```{r}
+#This adjustment, at 5% FDR, is built into the decideTests function:
+results <- decideTests(ebayes)
+
+#decideTests produces 0, 1, or -1 for each probes, telling if that 
+#probe did not pass the test (0), or was significantly 
+#increased (1), or decreased (-1)
+```
+
+
+How can we display the number of probes that passed?
+
+1.>sum(results == 1 | results == -1)
+
+Correct - results==1 gives TRUE for every result that is 1, results==-1 TRUE for every result that is -1, and by | we combine so that either TRUE is TRUE for each probe. Then every TRUE counts as 1 in sum()
+
+or
+
+2.> length(which(results != 0)) 
+
+Correct - we count the number of values in the row number array in B.
+
+```{r}
+#displays the number of probes that passed
+length(which(results != 0))
+```
+
+There are other ways to control the rate of false positives in a multiple test experiment--**Holm-Bonferroni**
+
+###Data exploration continued
+
+```{r}
+#A neat function to display the result of just two conditions is the Venn diagram:
+vennDiagram(results)
+```
+
+```{r}
+#Extract the original data for the most changing probes:
+resData <- exprs(eset)[results != 0,]
+```
+
+```{r}
+#Add gene symbols as row names:
+
+geneSymbol <- as.array(fData(eset)[,"Gene symbol"])
+gs <- geneSymbol[c(which(results != 0))]
+rownames(resData) <- gs
+```
+
+```{r}
+#Add p-values in an extra column:
+
+pvalues <- ebayes$p.value[results != 0,]
+resData <- cbind(resData, pvalues)
+```
+
+```{r}
+#And add-p values corrected for multiple testing (q-values):
+
+adj.pvalues <- p.adjust(ebayes$p.value, method="BH")
+adj.pvalues <- adj.pvalues[results != 0]
+resData <- cbind(resData, adj.pvalues)
+```
+
+
+
+The character values are surrounded by quotes.
+
+Which parameter could we add to write.table to avoid that?
+----'quote=FALSE'
+
+```{r}
+#Write output to a file:
+
+
+write.table(resData, "most_regulated.txt",sep="\t", quote = FALSE)
+```
+
+
+
+**Now we have generated both quality control graphs and a table of probes that change significantly between the samples. It's time for the medical scientists to take over and let them make the biological conclusions.**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,75 @@
+---
+title: "DASI_Exploratory Data Analysis_Project Phase I"
+author: "Nishant Upadhyay"
+date: "Sunday, September 21, 2014"
+output: html_document
+---
+```{r}
+library(datasets)
+data(InsectSprays)
+```
+
+```{r}
+summary(InsectSprays)
+```
+```{r}
+head(InsectSprays)
+```
+To know the class of each variable:=
+```{r}
+sapply(InsectSprays,class)
+```
+Since we have one Numeric variable and one categorical variable we can see the summary by each factor/group levels:-
+```{r}
+by(InsectSprays$count,InsectSprays$spray,summary)
+```
+We first plot the response variable'count' vs explanatory variable'spray'
+
+```{r}
+library(lattice)
+xyplot(count~spray,data=InsectSprays,pch=16,col="blue")
+```
+
+Let's now see the distribution of numeric variable"count":-
+
+```{r}
+# layout boxplot is at the bottom 
+nf <- layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(2,0.5))
+par(mar=c(2.4, 4.1, 0.5, 2.1))
+hist(InsectSprays$count,xlim=c(-4,30), breaks=10,col = "steelblue",freq=F)
+lines(density(InsectSprays$count),col="darkred")
+boxplot(InsectSprays$count, horizontal=TRUE,  outline=TRUE,ylim=c(-4,30), frame=F, col = "green1",width=10)
+
+```
+The Histogram with boxplot shows that count data is right skewed with two prominent peaks.Therefore it seems the 'count' variable is bimodal.
+
+```{r}
+qqnorm(InsectSprays$count)
+qqline(InsectSprays$count)
+```
+The normal probability plot of the numeric variable'count' shows that not all point lie along the straight line but some points at the lower end are far from the line indicating that the distribution of 'count' is skewed towards the right which is more clearly visible in the above plot.
+
+Lets see the distribution of each type of spray variable:-
+```{r}
+library(UsingR)
+par(mar=c(4.1, 5.1, 1.0, 2.1))
+simple.densityplot(count ~ spray, data =InsectSprays,
+                   xlab="InsectSprays$count",main="InsectSprays$spray")
+```
+
+Another way to visualise the categorical variable is by plotting side by side boxplot :-
+  
+```{r}
+par(mar=c(5.1, 5.1, 1.2, 2.1))
+require(stats); require(graphics)
+boxplot(count ~ spray, data = InsectSprays,xlab = "Type of Spray",
+        ylab = "Insect Count",main = " 'InsectSprays' Box Plot", 
+        varwidth = TRUE, col = "lightgray")
+```
+  
+  
+The boxplot for 'spray'variable suggests that there were less moths on plots sprayed with C, D and E.Also note that the variation in the number of moths is smaller in these treatments 
+
+
+
+

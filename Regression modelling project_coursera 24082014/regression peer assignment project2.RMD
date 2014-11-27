@@ -1,0 +1,111 @@
+---
+title: "The effect of the transmission on fuel consumption"
+author: "Nishant Upadhyay"
+date: "Saturday, August 23, 2014"
+output:
+  pdf_document: default
+  html_document:
+    theme: united
+---
+```{r,comment=NA,echo=FALSE}
+data(mtcars)
+```
+### Executive summary
+This report uses data extracted from the 1974 Motor Trend US magazine that comprises  fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973-74 models)1974;13 of them had manual transmission compared to 19 on automatic.This data is used to estimate the effect of the type of transmission (automatic vs. manual) on the milage (MPG). The results suggest that manual transmission allows for a higher MPG. However this result only becomes statistically significant after a model adjustment that attributes more explanatory power to the transmission.
+
+### Introduction and exploratory data analysis
+The starting point for this analysis is a simple theory based approach. Based on intuition it seems reasonalbe to assume that the mpg of a car is mainly determined by its weight and its power. Furthermore it is likely that cars with more cylinders have a lager displacement and therefore also more hp. The following short exploratory data analysis verifies these assumptions.
+```{r, echo=FALSE,fig.height=2}
+par(mfcol=c(1,2), mar=c(3.5,3.5,0,0.5), oma=c(0.5,5.5,0.5,0.5),cex=0.7,mgp=c(1.7,0.5,0))
+with(mtcars,plot(mpg~wt,col=cyl/2,pch=am+16,xlab="Weight (1000lbs)",ylab="MPG",main=""))
+legend("topright",pch=16:17,legend=c("Automatic","Manual"),bty="n")
+legend("bottomleft",text.col=2:4,legend=c("4 cyl.","6 cyl.","8 cyl."),bty="n")
+
+with(mtcars,plot(hp~disp,col=cyl/2,pch=am+16,xlab="Displacement (cu. inch)",ylab="Gross HP",main=""))
+legend("topleft",pch=16:17,legend=c("Automatic","Manual"),bty="n")
+legend("bottomright",text.col=2:4,legend=c("4 cyl.","6 cyl.","8 cyl."),bty="n")
+```
+  
+  The left part of above figure plots the MPG against the weight using colors to show the number of cylinders an symbols to represent the transmission. The plot provides a couple of interesting insights: (1.1) There is a clear negative relationship between MPG and weight, (1.2) there is a clear positive relationship between the number of cylinders and the weight of a car and (1.3) automatic transmission seems to be used almost exclusively in heavy cars with 8 cylinder engines whereas manual transmissions are mainly used in lighter cars with 4 cylinder engines. The right part shows that (2.1) there is a strong linear positive relationship between HP and displacement (2.2) engines with more cylinders clearly also provide more HP and (2.3) apart from two excpetions all high-powered cars use an automatic transmission.  
+
+### The initial model
+The exploratory data analysis prooves that a model using the weight and some variable measuring the power of a car is a reasonable starting point. However (2.1) and (2.2) suggest that a model containing all of the three power-relatded variables (`cyl, disp, hp`) will suffer from multicollinearity. Therefore the initial model will only use cyl as a factor-varible. In addition (1.3) suggests that including weight in the model will suppress any potential impact of the transmission on `mpg`. The initial model for this analysis is therefore `mpg ~ am + cyl + wt` (whereas `am` and `cyl` a treated as factor variables). The estimation results for this regression can be found in the appendix and show that the coefficients on both `wt` and `cyl` are statistically significant on a 1% significance level both coefficients feature expected signs, i.e. higher `wt` implies lower `mpg` and more cylinders imply lower `mpg` as well. Furthermore we cannot reject the hypothesis that the coefficient on `am` is 0.
+
+### Strategy for model enhancement and selection
+From the exploratory data analysis we have seen that automatic transmissions are mainly used in heavy, high-powered cars. We cannot say anything about the causal direction of the correlation but theory suggests that an automatic transmission is heavier than a manual transmission which will result in a lower `mpg`. However, in the initial model this lower `mpg` is attributed to the variable `wt` and not to `am`. Therefore my approach is to adjust `wt` to attribute any weight-related effects of the transmission to `am`. This is done by an auxialliary regression where I regress `wt` on `am` and some other explanatory variables from the `mtcars` dataset. I used likelihood ratio tests to determine the correct model for this auxilliary regression. The estimation of the auxilliary regression shows that, when controlling for other factors, cars with automatic transmissions tend to be 700lbs heavier than cars with manual transmissions. Details on the results including residual plots and diagnostics can be found in the appendix. The residual plot and the diagnostics suggest that the model is valid.  
+
+To retrieve the adjusted model I subtract these 700lbs from all cars with a automatic transmission and store the new weight in a variable `mwt`: `mtcars$mwt <- mtcars$wt + (1-mtcars$am)*-0.70885`.  
+
+The adjusted base model is `mpg~am+cyl+mwt`. Starting from this base model I gradually add the variables `hp`, `drat` and `vs` select the final model based on a likelihood ratio test. The likelihood ratio test suggests that `hp` should be added to the model. The detailed results can be found in the appendix.
+
+### Estimating the final model and interpreting the results
+The final model used to estimate the impact of the transmission type on the mileage of the car is therefore `mpg~am+cyl+mwt+hp`. The estimastion results are given below.
+```{r,comment=NA,echo=FALSE}
+mtcars$mwt <- mtcars$wt + (1-mtcars$am)*-0.70885
+fit1 <- lm(mpg~factor(am)+factor(cyl)+mwt+hp,data=mtcars)
+summary(fit1)
+cil <- confint(fit1, 'factor(am)1',level=0.95)[1,1]
+ciu <- confint(fit1, 'factor(am)1',level=0.95)[1,2]
+```
+The estimation results from my final model report a positive coefficient on `am`, i.e. a manual transmission is better for MPG. Recall that `am` is 0 for cars with an automatic transmission and 1 for cars with a manual transmission. The p-value for `am` is `0.004`, therefore the coefficient is considered statistically significant on a 1% significance level. Additionally the estimation results support the hypothesis that a higher weight, more hp and also more cylinders yield a lower MPG.   
+
+The value of the coefficient on `am` is `3.58`. Therefore, holding the other factors constant, the MPG of a car with a manual transmission is 3.58 higher than the MPG of a car with an automatic transmission. To quantify the uncertainty in this conclusion I compute the 95% confidence interval. The 95% confidence interval for `am` is [`r cil`, `r ciu`]. Therefore we can say that we are 95% confident that the true effect of `am` is in this range. Furthermore the R^2 shows that the model explains 86,6% of the variation in MPG.  
+
+```{r,comment=NA,echo=FALSE,fig.height=1.7,fig.width=6}
+par(mfrow=c(1,2),cex.main=0.1,cex=0.6,mgp=c(1.7,0.5,0),mar=c(3,3.5,2,0.5),oma=c(0.5,10,0.5,0.5))
+plot(fit1,which=1:2,cex.caption=0.5)
+```
+The residual plot shows no systematic trend in the residuals. Furtheremore the Q-Q plot does not indicate a non-normal distribution of the residuals. The appendix shows additional diagnostics for the estimation. Looking at the Cook's distance and the residual vs leverage plot in the appendix one can tell none of the single observations has a critical influence on the model. All in all the diagnostics give indication that the chosen model is valid.
+
+## Appendix
+
+###Let's look at'mtcars'dataset 
+```{r,comment=NA,echo=TRUE}
+head(mtcars)
+```
+The variables included were: fuel consumption in miles per US gallon (MPG) (mpg),number of cylingers(cyl), engine displacement in cubic inches (disp), gross housepower(hp), real axle ratio(drat), weight in 1000 pounds (wt), quarter mile time in seconds (qsecs), engine configuration (vs), transmission-anutomatic/manual(am),numberof forward gears (gears) and number of carburetors (carb).
+
+### Correlation matrix
+```{r,comment=NA,echo=FALSE,fig.height=6,fig.width=10}
+mtcars$mwt=NULL
+round(cor(mtcars),2)
+
+pairs(mtcars, panel = panel.smooth)
+
+```
+
+### Estimation of the initial model
+```{r,comment=NA,echo=FALSE}
+summary(lm(mpg~factor(am)+factor(cyl)+wt,data=mtcars))
+```
+### Auxilliary regression to estimate impact of transmission on weight
+```{r,comment=NA,echo=FALSE}
+aux <- lm(wt~factor(cyl)+disp+factor(am),data=mtcars)
+aux1 <- lm(wt~factor(cyl)+disp+factor(am)+carb,data=mtcars)
+aux2 <- lm(wt~factor(cyl)+disp+factor(am)+carb+hp,data=mtcars)
+anova(aux,aux1,aux2)
+summary(aux1)
+```
+```{r,comment=NA,echo=FALSE,fig.height=4.5,fig.width=7}
+par(mfrow=c(2,2),cex.main=0.1,cex=0.6,mgp=c(1.7,0.5,0),mar=c(4,3.5,2,0.5),oma=c(0.5,10,0.5,0.5))
+plot(aux1)
+```
+
+### Steps to the final model
+
+```{r,comment=NA,echo=FALSE}
+mtcars$mwt <- mtcars$wt + (1-mtcars$am)*-0.70885
+base <- lm(mpg~factor(am)+factor(cyl)+mwt,data=mtcars)
+fit1 <- lm(mpg~factor(am)+factor(cyl)+mwt+hp,data=mtcars)
+fit2 <- lm(mpg~factor(am)+factor(cyl)+mwt+hp+drat,data=mtcars)
+fit3 <- lm(mpg~factor(am)+factor(cyl)+mwt+hp+drat+factor(vs),data=mtcars)
+anova(base,fit1,fit2,fit3)
+```
+### Diagnostics for the final model
+```{r,comment=NA,echo=FALSE,fig.height=4.5,fig.width=7}
+par(mfrow=c(2,2),cex.main=0.1,cex=0.6,mgp=c(1.7,0.5,0),mar=c(4,3.5,2,0.5),oma=c(0.5,10,0.5,0.5))
+plot(fit1,which=3:6,cex.caption=0.5)
+```
+
+
+
